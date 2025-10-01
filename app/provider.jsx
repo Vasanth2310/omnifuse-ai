@@ -10,6 +10,7 @@ import { db } from '@/config/FirebaseConfig'
 import { DefaultModel } from '@/shared/AiModelsShared'
 import { AiSelectedModelContext } from '@/context/AiSelectedModelContext'
 import { UserDetailContext } from '@/context/UserDetailContext'
+import { updateDoc } from 'firebase/firestore';
 
 function Provider({
   children,
@@ -19,12 +20,27 @@ function Provider({
   const { user } = useUser();
   const [aiSelectedModels, setAiSelectedModels] = useState(DefaultModel);
   const [userDetail, setUserDetail] = useState();
+  const [messages, setMessages] = useState({});
 
   useEffect(() => {
     if (user) {
       CreateNewUser();
     }
   }, [user])
+
+  useEffect(() => {
+    if(aiSelectedModels){
+      //Update to Firebase Database
+      updateAiModelSelectionPref();
+    }
+  }, [aiSelectedModels]);
+
+  const updateAiModelSelectionPref = async () => {
+    const docRef = doc(db, "users", user?.primaryEmailAddress?.emailAddress);
+    await updateDoc(docRef, {
+      selectedModelPref: aiSelectedModels
+    })
+  }
 
   const CreateNewUser = async () => {
     //If user exist?
@@ -34,7 +50,7 @@ function Provider({
     if (userSnap.exists()) {
       console.log('Existing User');
       const userInfo = userSnap.data();
-      setAiSelectedModels(userInfo?.selectedModelPref || DefaultModel); // ✅ fallback
+      setAiSelectedModels(userInfo?.selectedModelPref ?? DefaultModel);
       setUserDetail(userInfo);
       return;
     }
@@ -63,7 +79,7 @@ function Provider({
       disableTransitionOnChange
     >
       <UserDetailContext.Provider value={{userDetail, setUserDetail}}>
-        <AiSelectedModelContext.Provider value={{ aiSelectedModels, setAiSelectedModels }}>
+        <AiSelectedModelContext.Provider value={{ aiSelectedModels, setAiSelectedModels, messages, setMessages }}>
           <SidebarProvider>
             <AppSidebar />
 

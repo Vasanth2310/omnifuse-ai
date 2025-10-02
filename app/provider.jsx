@@ -29,18 +29,18 @@ function Provider({
   }, [user])
 
   useEffect(() => {
-    if(aiSelectedModels){
-      //Update to Firebase Database
+    if (user && aiSelectedModels) {
       updateAiModelSelectionPref();
     }
-  }, [aiSelectedModels]);
+  }, [aiSelectedModels, user]);
 
   const updateAiModelSelectionPref = async () => {
+    if (!user?.primaryEmailAddress?.emailAddress) return;
     const docRef = doc(db, "users", user?.primaryEmailAddress?.emailAddress);
     await updateDoc(docRef, {
       selectedModelPref: aiSelectedModels
-    })
-  }
+    });
+  };
 
   const CreateNewUser = async () => {
     //If user exist?

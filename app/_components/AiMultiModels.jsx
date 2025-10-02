@@ -14,9 +14,7 @@ import { Switch } from "@/components/ui/switch"
 import { Loader, Lock, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AiSelectedModelContext } from '@/context/AiSelectedModelContext';
-import { doc, updateDoc } from 'firebase/firestore';
-import { useUser } from '@clerk/nextjs';
-import { db } from '@/config/FirebaseConfig';
+import { useAuth, useUser } from '@clerk/nextjs';
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -24,6 +22,7 @@ function AiMultiModels() {
     const {user} = useUser();
     const [aiModelList, setAiModelList] = useState(AiModelList);
     const {aiSelectedModels, setAiSelectedModels, messages, setMessages} = useContext(AiSelectedModelContext);
+    const { has } = useAuth();
 
     const onToggleChange = (model, value) => {
         setAiModelList((prev) =>
@@ -69,7 +68,7 @@ function AiMultiModels() {
                         height={24}
                         />
 
-                        {model.enable && (
+                        {(!has({ plan: 'unlimited_plan' })) && model.enable && (
                             <Select 
                                 defaultValue={aiSelectedModels?.[model.model]?.modelId}
                                 onValueChange={(value) => onSelectValue(model.model, value)}
@@ -100,40 +99,50 @@ function AiMultiModels() {
                         </Select>)}
                     </div> 
                     <div>
-                        {model.enable ? <Switch checked={model.enable}
-                        onCheckedChange={(v)=>onToggleChange(model.model, v)}
-                        />
-                        : <MessageSquare 
-                        className='cursor-pointer'
-                        onClick={()=>onToggleChange(model.model, true)} />}
+                        {model.enable && aiSelectedModels[model.model]?.enable ? (
+                            <Switch 
+                                checked={model.enable}
+                                disabled={(!has({ plan: 'unlimited_plan' })) && model.premium}
+                                onCheckedChange={(v)=>onToggleChange(model.model, v)}
+                            />
+                        ) : (
+                            <MessageSquare 
+                                className='cursor-pointer h-5 w-5'
+                                onClick={()=>onToggleChange(model.model, true)} 
+                            />
+                        )}
                     </div>
                 </div> 
-                    {model.premium && model.enable && <div className='flex items-center justify-center h-full'>
+                    {(!has({ plan: 'unlimited_plan' })) && model.premium && model.enable && <div className='flex items-center justify-center h-full'>
                     <Button><Lock />Upgrade to unlock</Button>
                 </div>}
 
-                {model.enable && <div className='flex-1 p-4'>
-                    <div className='flex-1 p-4 space-y-2'>
+                {model.enable && aiSelectedModels[model.model]?.enable && 
+                  (!model.premium || (!has({ plan: 'unlimited_plan' }))) && (
+                    <div className='flex-1 p-4'>
+                      <div className='flex-1 p-4 space-y-2'>
                         {messages[model.model]?.map((m, i) => (
-                            <div
+                          <div
+                            key={i}
                             className={`p-2 rounded-md ${m.role == 'user' ? "bg-blue-100 text-blue-900" 
-                                : "bg-gray-100 text-gray-900"
+                              : "bg-gray-100 text-gray-900"
                             }`}
-                            >
-                                {m.role == 'assistant' && (
-                                    <span className='text-sm text-gray-400'>{m.model ?? model.model}</span>
-                                )}
-                                <div className='flex gap-3 items-center'>
-                                {m.content == 'Thinking...' && <><Loader className='animate-spin'/><span>Thinking...</span></> }</div>
-                                {m.content !== 'Thinking...' && 
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                    {m.content}
-                                </ReactMarkdown>}
+                          >
+                            {m.role == 'assistant' && (
+                              <span className='text-sm text-gray-400'>{m.model ?? model.model}</span>
+                            )}
+                            <div className='flex gap-3 items-center'>
+                              {m.content == 'Thinking...' && <><Loader className='animate-spin'/><span>Thinking...</span></> }
                             </div>
+                            {m?.content !== 'Thinking...' && 
+                              m?.content && <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {m?.content}
+                              </ReactMarkdown>}
+                          </div>
                         ))}
+                      </div>
                     </div>
-                </div>}
-
+                )}
             </div>   
             
         ))}

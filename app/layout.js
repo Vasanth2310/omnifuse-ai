@@ -3,6 +3,7 @@ import "./globals.css";
 import Provider from "./provider";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "sonner";
+import React, { Suspense } from 'react'
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,10 +27,12 @@ export default function RootLayout({ children }) {
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Provider>
-          {children}
-          <Toaster/>          
-        </Provider>
+        <Suspense fallback={<div/>}>
+          <Provider>
+            {children}
+            <Toaster/>
+          </Provider>
+        </Suspense>
       </body>
     </html>
     </ClerkProvider>

@@ -16,17 +16,21 @@ import { db } from "@/config/FirebaseConfig";
 import { useContext, useEffect, useState } from "react";
 import moment from "moment/moment";
 import Link from "next/link";
+import ProfileModal from './ProfileModal'
+import { doc, updateDoc } from 'firebase/firestore';
 import axios from "axios";
 import { AiSelectedModelContext } from "@/context/AiSelectedModelContext";
 import PricingModel from "./PricingModel";
+import AiModelList from '@/shared/AiModelList'
 
 export function AppSidebar() {
-  const {theme, setTheme} = useTheme();
-  const {user} = useUser();
+  const { theme, setTheme } = useTheme();
+  const { user } = useUser();
   const [chatHistory, setChatHistory] = useState([]);
   const [freeMsgCount, setFreeMsgCount] = useState(0);
-  const {aiSelectedModels, setAiSelectedModels, messages, setMessages} = useContext(AiSelectedModelContext);
+  const { aiSelectedModels, setAiSelectedModels, messages, setMessages } = useContext(AiSelectedModelContext);
   const { has } = useAuth();
+  const [profileOpen, setProfileOpen] = useState(false);
   // const paidUser = has({ plan: 'unlimited_plan' });
 
   useEffect(() => {
@@ -46,23 +50,23 @@ export function AppSidebar() {
       setChatHistory(prev => [...prev, doc.data()])
     })
   }
-  
+
   const GetLastUserMessageFromChat = (chat) => {
 
-      const allMessages = Object.values(chat.messages).flat();
-      const userMessages = allMessages.filter(msg => msg.role == 'user');
+    const allMessages = Object.values(chat.messages).flat();
+    const userMessages = allMessages.filter(msg => msg.role == 'user');
 
-      const lastUserMsg = userMessages[userMessages.length - 1]?.content || null;
+    const lastUserMsg = userMessages[userMessages.length - 1]?.content || null;
 
-      const lastUpdated = chat.lastUpdated || Date.now();
-      const formattedDate = moment(lastUpdated).fromNow();
+    const lastUpdated = chat.lastUpdated || Date.now();
+    const formattedDate = moment(lastUpdated).fromNow();
 
-      return {
-        chatId: chat.chatId,
-        message: lastUserMsg,
-        lastMsgDate: formattedDate
-      };
+    return {
+      chatId: chat.chatId,
+      message: lastUserMsg,
+      lastMsgDate: formattedDate
     };
+  };
 
   const GetRemainingTokenMsgs = async () => {
     const result = await axios.post('/api/user-remaining-msg', { token: 0 });
@@ -74,68 +78,105 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <div className="p-3">
-        <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
-                <Image src={'/logo.svg'} alt="Logo" width={60} height={60}
+              <Image src={'/logo.svg'} alt="Logo" width={60} height={60}
                 className="w-[40px] h-[40px]"
-                />
-                <h2 className="font-bold text-xl">OmniFuse AI</h2>
+              />
+              <h2 className="font-bold text-xl">OmniFuse AI</h2>
             </div>
             <div>
-                {theme == 'light' ? <Button variant={'ghost'} onClick={()=>setTheme('dark')}><Sun /></Button>
-                : <Button variant={'ghost'} onClick={()=>setTheme('light')}><Moon/></Button>}
+              {theme == 'light' ? <Button variant={'ghost'} onClick={() => setTheme('dark')}><Sun /></Button>
+                : <Button variant={'ghost'} onClick={() => setTheme('light')}><Moon /></Button>}
             </div>
-        </div>
-        {user ? 
-        <Link href={'/'}>
-        <Button className='mt-7 w-full' size="lg">+ New Chat</Button> 
-        </Link> : 
-        <SignInButton>
-          <Button className='mt-7 w-full' size="lg">+ New Chat</Button>
-        </SignInButton>}
+          </div>
+          {user ?
+            <Link href={'/'}>
+              <Button className='mt-7 w-full' size="lg">+ New Chat</Button>
+            </Link> :
+            <SignInButton>
+              <Button className='mt-7 w-full' size="lg">+ New Chat</Button>
+            </SignInButton>}
         </div>
       </SidebarHeader>
 
       <SidebarContent>
         <SidebarGroup>
-            <div className={'p-3'}>
+          <div className={'p-3'}>
             <h2 className="font-bold text-lg">Chat</h2>
             {!user && <p className="text-sm text-gray-400">Sign in to Start</p>}
 
-              {chatHistory.map((chat, index) => (
-                <Link href={'?chatId='+chat.chatId} key={index} className="">
-                  <div className="hover:bg-gray-100 p-3 cursor-pointer">
-                    <h2 className="text-sm text-gray-400">{GetLastUserMessageFromChat(chat).lastMsgDate}</h2>
-                    <h2 className="text-lg line-clamp-1">{GetLastUserMessageFromChat(chat).message}</h2>
-                  </div>
-                  <hr className="my-1" />
-                </Link>
-              ) )}
+            {chatHistory.map((chat, index) => (
+              <Link href={'?chatId=' + chat.chatId} key={index} className="">
+                <div className="hover:bg-gray-100 p-3 cursor-pointer">
+                  <h2 className="text-sm text-gray-400">{GetLastUserMessageFromChat(chat).lastMsgDate}</h2>
+                  <h2 className="text-lg line-clamp-1">{GetLastUserMessageFromChat(chat).message}</h2>
+                </div>
+                <hr className="my-1" />
+              </Link>
+            ))}
 
-            </div>
+          </div>
         </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter>
         <div className="p-3 mb-10">
-          {!user ?  <SignInButton mode="modal">
+          {!user ? <SignInButton mode="modal">
             <Button className={'w-full'} size={'lg'}>Sign In / Sign Up</Button>
           </SignInButton>
-          : 
-          <div>
-            {!has({ plan: 'unlimited_plan' }) && 
+            :
             <div>
-              <UsageCreditProgress remainingToken = {freeMsgCount} />
-              <PricingModel>
-                <Button className={'w-full mb-3'}><Zap/> Upgrade Plan </Button>
-              </PricingModel>
-            </div>}
-            <Button className="flex" variant={'ghost'}>
-              <User2/> <h2>Settings</h2>
-            </Button>
-          </div>
+              {!has({ plan: 'unlimited_plan' }) &&
+                <div>
+                  <UsageCreditProgress remainingToken={freeMsgCount} />
+                  <PricingModel>
+                    <Button className={'w-full mb-3'} onClick={async () => {
+                      // upgrade handler: update Clerk publicMetadata via server API, then update Firestore and enable premium models locally
+                      if (!user?.primaryEmailAddress?.emailAddress) return;
+                      const email = user.primaryEmailAddress.emailAddress;
+                      try {
+                        // call server API to update Clerk metadata
+                        await fetch('/api/upgrade-plan', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email })
+                        });
+
+                        // update Firestore user doc
+                        const userRef = doc(db, 'users', email);
+                        await updateDoc(userRef, { plan: 'unlimited_plan' });
+
+                        // enable premium models in selection and ensure a default modelId is set
+                        setAiSelectedModels(prev => {
+                          const updated = { ...prev };
+                          AiModelList.forEach(m => {
+                            const key = m.model;
+                            const defaultId = m.subModel?.[0]?.id ?? null;
+                            updated[key] = {
+                              ...(updated[key] ?? {}),
+                              enable: true,
+                              modelId: updated[key]?.modelId ?? defaultId
+                            };
+                          });
+                          return updated;
+                        });
+
+                        // open profile to show updated plan
+                        setProfileOpen(true);
+                      } catch (err) {
+                        console.error('Upgrade failed', err);
+                      }
+                    }}><Zap /> Upgrade Plan </Button>
+                  </PricingModel>
+                </div>}
+              <Button className="flex" variant={'ghost'} onClick={() => setProfileOpen(true)}>
+                <User2 /> <h2>Settings</h2>
+              </Button>
+              <ProfileModal open={profileOpen} onOpenChange={setProfileOpen} />
+            </div>
           }
-        </div> 
+        </div>
       </SidebarFooter>
     </Sidebar>
   )

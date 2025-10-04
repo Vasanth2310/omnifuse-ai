@@ -15,7 +15,7 @@ import { toast } from 'sonner'
 function ChatInputBox() {
 
     const [userInput, setUserInput] = useState();
-    const {aiSelectedModels, setAiSelectedModels, messages, setMessages} = useContext(AiSelectedModelContext);
+    const { aiSelectedModels, setAiSelectedModels, messages, setMessages } = useContext(AiSelectedModelContext);
     const { user } = useUser();
     const [chatId, setChatId] = useState();
     const params = useSearchParams();
@@ -25,35 +25,35 @@ function ChatInputBox() {
 
     useEffect(() => {
         const chatId_ = params.get('chatId')
-        if(chatId_){
+        if (chatId_) {
             setChatId(chatId_);
             GetMessages(chatId_);
         }
-        else{
+        else {
             setMessages([]);
             setChatId(uuidv4());
         }
-        
-    },[params])
+
+    }, [params])
 
     const handleSend = async () => {
         if (!userInput.trim()) return;
         setLoading(true);
 
-        if(!has({ plan: 'unlimited_plan' })){
+        if (!has({ plan: 'unlimited_plan' })) {
             // Call only if user is free
             // Deduct and check token limit
-            const result = await axios.post('/api/user-remaining-msg',{
+            const result = await axios.post('/api/user-remaining-msg', {
                 token: 1
             });
 
 
             const remainingToken = result?.data?.remainingToken;
-            if(remainingToken <= 0){
+            if (remainingToken <= 0) {
                 console.log("Limit Exceeded");
                 toast.error('Maximum Daily Limit Exceeded');
-                setLoading(false); 
-                return ;
+                setLoading(false);
+                return;
             }
         }
 
@@ -61,78 +61,78 @@ function ChatInputBox() {
         setMessages((prev) => {
             const updated = { ...prev };
             Object.keys(aiSelectedModels).forEach((modelKey) => {
-                if(aiSelectedModels[modelKey].enable){
-                updated[modelKey] = [
-                    ...(updated[modelKey] ?? []),
-                    { role: "user", content: userInput },
-                ];
-            }
+                if (aiSelectedModels[modelKey].enable) {
+                    updated[modelKey] = [
+                        ...(updated[modelKey] ?? []),
+                        { role: "user", content: userInput },
+                    ];
+                }
             });
             return updated;
         });
 
-    const currentInput = userInput; // capture before reset
-    setUserInput("");
+        const currentInput = userInput; // capture before reset
+        setUserInput("");
 
-    // 2️⃣ Fetch response from each enabled model
-    Object.entries(aiSelectedModels).forEach(async ([parentModel, modelInfo]) => {
-        if (!modelInfo.modelId || aiSelectedModels[parentModel].enable == false) return;
+        // 2️⃣ Fetch response from each enabled model
+        Object.entries(aiSelectedModels).forEach(async ([parentModel, modelInfo]) => {
+            if (!modelInfo.modelId || aiSelectedModels[parentModel].enable == false) return;
 
-        // Add loading placeholder before API call
-        setMessages((prev) => ({
-            ...prev,
-            [parentModel]: [
-                ...(prev[parentModel] ?? []),
-                { role: "assistant", content: "Thinking...", model: parentModel, loading: true },
-            ],
-        }));
-
-
-        try {
-            const result = await axios.post("/api/ai-multi-model", {
-                model: modelInfo.modelId,
-                msg: [{ role: "user", content: currentInput }],
-                parentModel,
-            });
-
-            const { aiResponse, model } = result.data;
-
-            // 3️⃣ Add AI response to that model’s messages
-            setMessages((prev) => {
-                const updated = [...(prev[parentModel] ?? [])];
-                const loadingIndex = updated.findIndex((m) => m.loading);
-
-                if (loadingIndex !== -1) {
-                    updated[loadingIndex] = {
-                        role: "assistant",
-                        content: aiResponse,
-                        model,
-                        loading: false,
-                    };
-                } else {
-                    // fallback if no loading msg found
-                    updated.push({
-                        role: "assistant",
-                        content: aiResponse,
-                        model,
-                        loading: false,
-                    });
-                }
-
-                return { ...prev, [parentModel]: updated };
-            });
-        } catch (err) {
-            console.error(err);
+            // Add loading placeholder before API call
             setMessages((prev) => ({
                 ...prev,
                 [parentModel]: [
                     ...(prev[parentModel] ?? []),
-                    { role: "assistant", content: "⚠️ Error fetching response." },
+                    { role: "assistant", content: "Thinking...", model: parentModel, loading: true },
                 ],
             }));
-        }
-    });
-};
+
+
+            try {
+                const result = await axios.post("/api/ai-multi-model", {
+                    model: modelInfo.modelId,
+                    msg: [{ role: "user", content: currentInput }],
+                    parentModel,
+                });
+
+                const { aiResponse, model } = result.data;
+
+                // 3️⃣ Add AI response to that model’s messages
+                setMessages((prev) => {
+                    const updated = [...(prev[parentModel] ?? [])];
+                    const loadingIndex = updated.findIndex((m) => m.loading);
+
+                    if (loadingIndex !== -1) {
+                        updated[loadingIndex] = {
+                            role: "assistant",
+                            content: aiResponse,
+                            model,
+                            loading: false,
+                        };
+                    } else {
+                        // fallback if no loading msg found
+                        updated.push({
+                            role: "assistant",
+                            content: aiResponse,
+                            model,
+                            loading: false,
+                        });
+                    }
+
+                    return { ...prev, [parentModel]: updated };
+                });
+            } catch (err) {
+                console.error(err);
+                setMessages((prev) => ({
+                    ...prev,
+                    [parentModel]: [
+                        ...(prev[parentModel] ?? []),
+                        { role: "assistant", content: "⚠️ Error fetching response." },
+                    ],
+                }));
+            }
+        });
+    };
 
     useEffect(() => {
         if (messages) {
@@ -141,6 +141,13 @@ function ChatInputBox() {
     }, [messages]);
 
     const SaveMessages = async () => {
+        // don't save empty chats: require at least one user message across models
+        const hasAnyUserMessage = Object.values(messages || {}).some(modelMsgs =>
+            Array.isArray(modelMsgs) && modelMsgs.some(m => m.role === 'user' && m.content && m.content.trim())
+        );
+
+        if (!hasAnyUserMessage) return; // skip saving empty/new chats
+
         // if (!chatId) return;
         const docRef = doc(db, 'chatHistory', chatId);
 
@@ -162,34 +169,34 @@ function ChatInputBox() {
     }
 
 
-  return (
-    <div className='relative min-h-screen'>
-        {/* Page Content */}
-        <div>
-            <AiMultiModels />
-        </div>
-        {/* Fixed Chat Input */}
-        <div className='fixed bottom-0 left-0 w-full flex justify-center px-4 pb-4'>
-            <div className='w-full border rounded-xl shadow-md max-w-2xl p-4'>
-                <input type='text' 
-                    placeholder='Ask Me Anything...'
-                    className='border-0 outline-none w-full'
-                    value={userInput}
-                    onChange={(event) => setUserInput(event.target.value)}
-                />
-                <div className='mt-3 flex justify-between items-center'>
-                    <Button className={''} variant={'ghost'} size={'icon'}>
-                        <Paperclip className='h-5 w-5'/>
-                    </Button>
-                    <div className='flex gap-5'>
-                        <Button variant={'ghost'} size={'icon'}><Mic/></Button>
-                        <Button size={'icon'} className={'bg-blue-600'} onClick={handleSend}><Send/></Button>
+    return (
+        <div className='relative min-h-screen'>
+            {/* Page Content */}
+            <div>
+                <AiMultiModels />
+            </div>
+            {/* Fixed Chat Input */}
+            <div className='fixed bottom-0 left-0 w-full flex justify-center px-4 pb-4'>
+                <div className='w-full border rounded-xl shadow-md max-w-2xl p-4'>
+                    <input type='text'
+                        placeholder='Ask Me Anything...'
+                        className='border-0 outline-none w-full'
+                        value={userInput}
+                        onChange={(event) => setUserInput(event.target.value)}
+                    />
+                    <div className='mt-3 flex justify-between items-center'>
+                        <Button className={''} variant={'ghost'} size={'icon'}>
+                            <Paperclip className='h-5 w-5' />
+                        </Button>
+                        <div className='flex gap-5'>
+                            <Button variant={'ghost'} size={'icon'}><Mic /></Button>
+                            <Button size={'icon'} className={'bg-blue-600'} onClick={handleSend}><Send /></Button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-  )
+    )
 }
 
 export default ChatInputBox
